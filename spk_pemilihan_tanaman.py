@@ -4,6 +4,7 @@ import numpy as np
 
 st.set_page_config(page_title="SPK Pemilihan Tanaman", layout="wide")
 
+# Styling
 st.markdown("""
 <style>
     .main-header {
@@ -50,10 +51,10 @@ st.markdown("""
         width: 100%;
         transition: all 0.3s ease;
     }
-                
 </style>
 """, unsafe_allow_html=True)
 
+# Header
 st.markdown("""
 <div class="main-header">
     <h1>🌱 Sistem Pendukung Keputusan Pemilihan Tanaman</h1>
@@ -61,23 +62,24 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-
-def hitung_saw(alternatif_matrix, input_vector, bobot, atribut):
-    selisih = np.abs(alternatif_matrix - input_vector)
+# Fungsi SAW
+def saw(alternatif_matrix, nilai_input, bobot, atribut):
+    selisih = np.abs(alternatif_matrix - nilai_input)
     m, n = selisih.shape
     normalisasi = np.zeros((m, n))
     
     for j in range(n):
-        if atribut[j] == 1:
+        if atribut[j] == 1:  # Benefit
             normalisasi[:, j] = selisih[:, j] / np.max(selisih[:, j])
-        else:
+        else:  # Cost
             normalisasi[:, j] = np.min(selisih[:, j]) / selisih[:, j]
 
-    return np.dot(normalisasi, bobot)
+    hasil_preferensi = np.dot(normalisasi, bobot)
+    return hasil_preferensi, normalisasi
 
 
-def get_user_inputs(df, deskripsi_kriteria):
+# Input User
+def user_input(df, deskripsi_kriteria):
     st.markdown("""
     <div class="input-section">
         <h3>Input Kondisi Lahan Anda</h3>
@@ -85,9 +87,7 @@ def get_user_inputs(df, deskripsi_kriteria):
     """, unsafe_allow_html=True)
     
     input_user = {}
-    
     col1, col2, col3 = st.columns(3)
-    
     kriteria_cols = [
         (['N', 'P', 'K'], col1),
         (['temperature', 'humidity'], col2), 
@@ -113,7 +113,9 @@ def get_user_inputs(df, deskripsi_kriteria):
     
     return input_user
 
-def tampilkan_hasil(preferensi, labels, crop_avg, input_user):
+
+# Hasil
+def tampilkan_hasil(preferensi, labels, crop_avg, input_user, normalisasi):
     df_hasil = pd.DataFrame({
         'Tanaman': labels,
         'Nilai Preferensi': preferensi
@@ -129,8 +131,15 @@ def tampilkan_hasil(preferensi, labels, crop_avg, input_user):
     </div>
     """, unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs(['📋 Kondisi Lahan', '📊 Semua Hasil', '🧮 Matriks Data', '⚖️ Bobot Kriteria'])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        '📋 Kondisi Lahan',
+        '⚖️ Bobot Kriteria',
+        '🔢 Matriks Data',
+        '📈 Normalisasi SAW',
+        '📊 Semua Hasil'
+    ])
 
+    #Kondisi Lahan
     with tab1:
         st.markdown("### 📋 Data Kondisi Lahan yang Diinput:")
         df_input = pd.DataFrame(input_user, index=["Nilai"])
@@ -145,34 +154,59 @@ def tampilkan_hasil(preferensi, labels, crop_avg, input_user):
         })
         st.dataframe(df_input_renamed.T, use_container_width=True)
 
+    #Bobot Kriteria
     with tab2:
+        st.markdown("### ⚖️ Bobot Kriteria yang Digunakan:")
+        df_bobot = pd.DataFrame({
+            'Kriteria': [
+                "Nitrogen (N)", "Fosfor (P)", "Kalium (K)", 
+                "Suhu", "Kelembapan", "pH Tanah", "Curah Hujan"
+            ],
+            'Bobot': [0.15, 0.15, 0.15, 0.2, 0.1, 0.15, 0.1],
+            'Jenis': ["Benefit", "Benefit", "Benefit", "Cost", "Cost", "Cost", "Cost"]
+        })
+        st.dataframe(df_bobot, use_container_width=True, hide_index=True)
+
+    #Matriks Data Rata-rata
+    with tab3:
+        st.markdown("### 🔢 Data Rata-rata Kondisi Optimal Tanaman:")
+        crop_avg_display = pd.DataFrame(
+            crop_avg.values.round(2),
+            columns=[
+                "Nitrogen (N)", "Fosfor (P)", "Kalium (K)", 
+                "Suhu (°C)", "Kelembapan (%)", "pH Tanah", "Curah Hujan (mm)"
+            ],
+            index=crop_avg.index
+        )
+        st.dataframe(crop_avg_display, use_container_width=True)
+
+    #Normalisasi SAW
+    with tab4:
+        st.markdown("### 📈 Matriks Hasil Normalisasi (SAW):")
+        df_normalisasi = pd.DataFrame(
+            normalisasi.round(4),
+            columns=[
+                "Nitrogen (N)", "Fosfor (P)", "Kalium (K)", 
+                "Suhu (°C)", "Kelembapan (%)", "pH Tanah", "Curah Hujan (mm)"
+            ],
+            index=labels
+        )
+        st.dataframe(df_normalisasi, use_container_width=True)
+
+    #Semua Hasil
+    with tab5:
         st.markdown("### 📊 Semua Hasil Penilaian:")
         df_hasil_display = df_hasil.copy()
         df_hasil_display['Ranking'] = df_hasil_display.index
         df_hasil_display['Skor (%)'] = (df_hasil_display['Nilai Preferensi'] * 100).round(2)
-        st.dataframe(df_hasil_display[['Ranking', 'Tanaman', 'Nilai Preferensi', 'Skor (%)']], 
-                    use_container_width=True)
+        st.dataframe(
+            df_hasil_display[['Ranking', 'Tanaman', 'Nilai Preferensi', 'Skor (%)']],
+            use_container_width=True,
+            hide_index=True
+        )
 
-    with tab3:
-        st.markdown("### 🧮 Data Rata-rata Kondisi Optimal Tanaman:")
-        crop_avg_display = crop_avg.round(2)
-        crop_avg_display.columns = [
-            "Nitrogen (N)", "Fosfor (P)", "Kalium (K)", 
-            "Suhu (°C)", "Kelembapan (%)", "pH Tanah", "Curah Hujan (mm)"
-        ]
-        st.dataframe(crop_avg_display, use_container_width=True)
-        
-    with tab4:
-        st.markdown("### ⚖️ Bobot Kriteria yang Digunakan:")
-        bobot_data = {
-            'Kriteria': ["Nitrogen (N)", "Fosfor (P)", "Kalium (K)", "Suhu", "Kelembapan", "pH Tanah", "Curah Hujan"],
-            'Bobot': [0.15, 0.15, 0.15, 0.2, 0.1, 0.15, 0.1],
-            'Jenis': ["Benefit", "Benefit", "Benefit", "Cost", "Cost", "Cost", "Cost"]
-        }
-        df_bobot = pd.DataFrame(bobot_data)
-        st.dataframe(df_bobot, use_container_width=True, hide_index=True)
-        
 
+# Main App
 def main():
     dataset = pd.read_csv("crop_recommendation.csv")
 
@@ -194,16 +228,14 @@ def main():
     bobot = np.array([0.15, 0.15, 0.15, 0.2, 0.1, 0.15, 0.1])
     atribut = [1, 1, 1, 0, 0, 0, 0]
 
-    input_user = get_user_inputs(dataset, deskripsi_kriteria)
-    
+    input_user = user_input(dataset, deskripsi_kriteria)
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("🔍 Analisis & Cari Rekomendasi", key="analyze_button"):
-            with st.spinner('🔄 Sedang menganalisis kondisi lahan Anda...'):
-                input_vector = np.array([input_user[k] for k in kriteria])
-                skor_preferensi = hitung_saw(alternatif_matrix, input_vector, bobot, atribut)
-                tampilkan_hasil(skor_preferensi, label_tanaman, crop_avg, input_user)
-
+            nilai_input = np.array([input_user[k] for k in kriteria])
+            skor_preferensi, normalisasi = saw(alternatif_matrix, nilai_input, bobot, atribut)
+            tampilkan_hasil(skor_preferensi, label_tanaman, crop_avg, input_user, normalisasi)
 
 
 if __name__ == "__main__":
